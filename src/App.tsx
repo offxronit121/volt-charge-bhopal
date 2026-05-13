@@ -13,11 +13,12 @@ import {
 import {
   Zap, Navigation, CheckCircle2, LogOut, BarChart3, TrendingUp, MapPin,
   Loader2, Star, XCircle, Settings, RefreshCw, Plus, Shield, Lock,
-  Mail, Phone, Eye, EyeOff, ArrowLeft, User as UserIcon,
+  Mail, Phone, Eye, EyeOff, ArrowLeft, User as UserIcon, MessageSquare,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, auth } from './lib/firebase';
 import type { Station, Booking, UserLocation } from './types';
+
 
 const BHOPAL_CENTER: [number, number] = [23.2599, 77.4126];
 const SLOTS = ["09:00 AM", "11:00 AM", "01:00 PM", "03:00 PM", "05:00 PM", "07:00 PM"];
@@ -746,6 +747,185 @@ function RerouteAlert({ alternatives, onDismiss, onAccept }: { alternatives: Sta
   );
 }
 
+// ── Feedback & Query Modal ────────────────────────────────────
+function FeedbackModal({ user, onClose }: { user: import('firebase/auth').User | null; onClose: () => void }) {
+  const [type, setType] = useState<'feedback' | 'query' | 'bug'>('feedback');
+  const [name, setName] = useState(user?.displayName || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [message, setMessage] = useState('');
+  const [rating, setRating] = useState(0);
+  const [hoveredRating, setHoveredRating] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async () => {
+    if (!name.trim()) { setError('Please enter your name'); return; }
+    if (!email.trim()) { setError('Please enter your email'); return; }
+    if (!message.trim()) { setError('Please enter your message'); return; }
+    if (type === 'feedback' && rating === 0) { setError('Please select a rating'); return; }
+
+    setSubmitting(true);
+    try {
+      await addDoc(collection(db, 'feedback'), {
+        type,
+        name: name.trim(),
+        email: email.trim(),
+        message: message.trim(),
+        rating: type === 'feedback' ? rating : null,
+        userId: user?.uid || null,
+        createdAt: Date.now(),
+        status: 'new',
+      });
+      setSubmitted(true);
+    } catch (e) {
+      setError('Failed to submit. Please try again.');
+      console.error(e);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const types = [
+    { id: 'feedback', label: 'Feedback', icon: '⭐', color: '#f59e0b' },
+    { id: 'query',    label: 'Query',    icon: '❓', color: '#6366f1' },
+    { id: 'bug',      label: 'Bug Report', icon: '🐛', color: '#ef4444' },
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(12px)', zIndex: 5000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}
+    >
+      <motion.div
+        initial={{ scale: 0.92, y: 24 }} animate={{ scale: 1, y: 0 }}
+        onClick={e => e.stopPropagation()}
+        style={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '32px', padding: '36px', width: '100%', maxWidth: '460px' }}
+      >
+        {!submitted ? (
+          <>
+            {/* Header */}
+            <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+              <div style={{ width: 56, height: 56, background: 'rgba(16,185,129,0.1)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                <MessageSquare size={26} color="#10b981" />
+              </div>
+              <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'white', marginBottom: '6px' }}>Feedback & Support</h2>
+              <p style={{ fontSize: '12px', color: '#475569' }}>Help us improve VoltHub Pro</p>
+            </div>
+
+            {/* Type selector */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '24px' }}>
+              {types.map(t => (
+                <button key={t.id} onClick={() => { setType(t.id as any); setError(''); }}
+                  style={{
+                    background: type === t.id ? `rgba(${t.id === 'feedback' ? '245,158,11' : t.id === 'query' ? '99,102,241' : '239,68,68'},0.15)` : '#1e293b',
+                    border: `1px solid ${type === t.id ? (t.id === 'feedback' ? '#f59e0b' : t.id === 'query' ? '#6366f1' : '#ef4444') : '#334155'}`,
+                    borderRadius: '12px', padding: '10px 6px', cursor: 'pointer',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', transition: 'all 0.2s',
+                  }}>
+                  <span style={{ fontSize: '18px' }}>{t.icon}</span>
+                  <span style={{ fontSize: '10px', fontWeight: 700, color: type === t.id ? t.color : '#475569' }}>{t.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Star rating — only for feedback */}
+            {type === 'feedback' && (
+              <div style={{ marginBottom: '20px' }}>
+                <p style={{ fontSize: '9px', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>Rate Your Experience</p>
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                  {[1, 2, 3, 4, 5].map(star => (
+                    <button key={star}
+                      onClick={() => setRating(star)}
+                      onMouseEnter={() => setHoveredRating(star)}
+                      onMouseLeave={() => setHoveredRating(0)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '32px', transition: 'transform 0.15s', transform: (hoveredRating || rating) >= star ? 'scale(1.2)' : 'scale(1)' }}>
+                      <span style={{ color: (hoveredRating || rating) >= star ? '#f59e0b' : '#1e293b', filter: (hoveredRating || rating) >= star ? 'drop-shadow(0 0 6px rgba(245,158,11,0.6))' : 'none', transition: 'all 0.15s' }}>
+                        ★
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                {rating > 0 && (
+                  <p style={{ textAlign: 'center', fontSize: '11px', color: '#f59e0b', marginTop: '6px', fontWeight: 600 }}>
+                    {['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent!'][rating]}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Name */}
+            <div style={{ marginBottom: '14px' }}>
+              <p style={{ fontSize: '9px', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '7px' }}>Your Name</p>
+              <input value={name} onChange={e => { setName(e.target.value); setError(''); }}
+                placeholder="Enter your name"
+                style={{ width: '100%', background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '11px 14px', color: 'white', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+
+            {/* Email */}
+            <div style={{ marginBottom: '14px' }}>
+              <p style={{ fontSize: '9px', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '7px' }}>Email Address</p>
+              <input value={email} onChange={e => { setEmail(e.target.value); setError(''); }}
+                placeholder="you@example.com" type="email"
+                style={{ width: '100%', background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '11px 14px', color: 'white', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+
+            {/* Message */}
+            <div style={{ marginBottom: '20px' }}>
+              <p style={{ fontSize: '9px', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '7px' }}>
+                {type === 'feedback' ? 'Your Feedback' : type === 'query' ? 'Your Question' : 'Describe the Bug'}
+              </p>
+              <textarea value={message} onChange={e => { setMessage(e.target.value); setError(''); }}
+                placeholder={
+                  type === 'feedback' ? 'Share your experience with VoltHub...'
+                  : type === 'query' ? 'What would you like to know?'
+                  : 'What went wrong? Steps to reproduce...'
+                }
+                rows={4}
+                style={{ width: '100%', background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '11px 14px', color: 'white', fontSize: '13px', outline: 'none', resize: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+            </div>
+
+            {error && <p style={{ fontSize: '12px', color: '#ef4444', marginBottom: '14px', textAlign: 'center' }}>{error}</p>}
+
+            <button onClick={handleSubmit} disabled={submitting}
+              style={{ width: '100%', background: '#10b981', color: '#020617', fontWeight: 800, padding: '14px', borderRadius: '14px', border: 'none', cursor: submitting ? 'not-allowed' : 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: submitting ? 0.7 : 1, marginBottom: '12px' }}>
+              {submitting ? <Loader2 size={16} className="animate-spin" /> : <MessageSquare size={16} />}
+              {submitting ? 'Submitting...' : 'Submit'}
+            </button>
+
+            <button onClick={onClose}
+              style={{ width: '100%', background: 'none', border: 'none', color: '#475569', fontSize: '11px', fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px' }}>
+              Cancel
+            </button>
+          </>
+        ) : (
+          /* Success state */
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 200 }}
+              style={{ width: 80, height: 80, background: 'rgba(16,185,129,0.15)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
+              <CheckCircle2 size={40} color="#10b981" />
+            </motion.div>
+            <h3 style={{ fontSize: '22px', fontWeight: 800, color: 'white', marginBottom: '10px' }}>
+              {type === 'feedback' ? 'Thank you! 🎉' : type === 'query' ? 'Query Received!' : 'Bug Reported!'}
+            </h3>
+            <p style={{ fontSize: '13px', color: '#475569', lineHeight: 1.6, marginBottom: '28px' }}>
+              {type === 'feedback'
+                ? 'Your feedback helps us make VoltHub better for everyone in Bhopal.'
+                : type === 'query'
+                ? "We'll get back to you at " + email + " within 24 hours."
+                : "Our team will look into this bug and fix it ASAP. Thanks for reporting!"}
+            </p>
+            <button onClick={onClose}
+              style={{ background: '#10b981', color: '#020617', fontWeight: 800, padding: '12px 32px', borderRadius: '14px', border: 'none', cursor: 'pointer', fontSize: '14px' }}>
+              Done
+            </button>
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
 // ── Main App ──────────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -764,6 +944,7 @@ export default function App() {
   const [showRegister, setShowRegister] = useState(false);
   const [showReroute, setShowReroute] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
   const [rerouteAlts, setRerouteAlts] = useState<Station[]>([]);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const rerouteTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -884,6 +1065,15 @@ export default function App() {
             <div className="w-2 h-2 bg-brand rounded-full animate-pulse"></div>
             <span className="text-xs font-medium">Firebase Live</span>
           </div>
+
+          {/* Feedback Button */}
+<button
+  onClick={() => setShowFeedback(true)}
+  style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '999px', padding: '7px 14px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+>
+  <MessageSquare size={13} color="#10b981" />
+  <span style={{ fontSize: '11px', fontWeight: 700, color: '#10b981' }}>Feedback</span>
+</button>
 
           {isOwner && (
             <button onClick={() => setShowAdmin(true)}
@@ -1213,6 +1403,13 @@ export default function App() {
             onAccept={(s) => { setSelectedStation(s); setShowReroute(false); }} />
         )}
       </AnimatePresence>
+
+      {/* Feedback Modal */}
+<AnimatePresence>
+  {showFeedback && (
+    <FeedbackModal user={user} onClose={() => setShowFeedback(false)} />
+  )}
+</AnimatePresence>      
 
       {/* Booking Success Modal */}
       <AnimatePresence>
