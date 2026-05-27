@@ -27,3 +27,11 @@ export interface UserLocation {
   lat: number;
   lng: number;
 }
+
+export interface UserProfile {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  points: number;
+  createdAt: number;
+}

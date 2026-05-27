@@ -18,6 +18,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { db, auth } from './lib/firebase';
 import type { Station, Booking, UserLocation } from './types';
+import GoldTierModal from './GoldTierGames';
 
 
 const BHOPAL_CENTER: [number, number] = [23.2599, 77.4126];
@@ -947,6 +948,8 @@ export default function App() {
   const [showFeedback, setShowFeedback] = useState(false);
   const [rerouteAlts, setRerouteAlts] = useState<Station[]>([]);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [showGoldTier, setShowGoldTier] = useState(false);
+  const [userPoints, setUserPoints] = useState(0);
   const rerouteTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -1084,12 +1087,17 @@ export default function App() {
           )}
 
           {user ? (
-            <div className="flex items-center gap-3 bg-slate-900 border border-slate-800 p-1.5 pl-4 rounded-full">
-              <span className="text-xs font-medium text-slate-400">{user.displayName || user.email?.split('@')[0]}</span>
-              <button onClick={() => auth.signOut()} className="btn-secondary w-8 h-8 rounded-full">
-                <LogOut size={14} />
-              </button>
-            </div>
+  <div className="flex items-center gap-3 bg-slate-900 border border-slate-800 p-1.5 pl-4 rounded-full">
+    {/* ✅ Points Badge — YAHAN ADD HUA */}
+    <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 999, padding: '4px 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
+      <Star size={12} color="#f59e0b" fill="#f59e0b" />
+      <span style={{ fontSize: 11, fontWeight: 700, color: '#f59e0b' }}>{userPoints} pts</span>
+    </div>
+    <span className="text-xs font-medium text-slate-400">{user.displayName || user.email?.split('@')[0]}</span>
+    <button onClick={() => auth.signOut()} className="btn-secondary w-8 h-8 rounded-full">
+      <LogOut size={14} />
+    </button>
+  </div>
           ) : (
             <button onClick={() => setShowAuthModal(true)} className="bg-brand text-slate-950 px-4 py-2 rounded-lg text-sm font-bold">
               Login / Sign Up
@@ -1279,17 +1287,22 @@ export default function App() {
               </motion.div>
             )}
           </AnimatePresence>
+          <button 
+  onClick={() => setShowGoldTier(true)} 
+  style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+>
+  <div className="h-32 bg-indigo-600 rounded-[32px] p-5 relative overflow-hidden shadow-lg shadow-indigo-600/20 group">
+    <div className="relative z-10">
+      <p className="text-white/80 text-[10px] font-bold uppercase tracking-widest">Smart Loyalty</p>
+      <h3 className="text-white font-bold text-lg leading-tight mt-1 uppercase italic tracking-tighter">Gold Tier Access</h3>
+      <p className="text-white/60 text-[10px] mt-1">Earn 5 points per kWh charged</p>
+    </div>
+    <Star className="absolute right-[-10px] bottom-[-10px] w-24 h-24 text-white/10 group-hover:rotate-12 transition-transform" />
+  </div>
+</button>
 
-          <div className="h-32 bg-indigo-600 rounded-[32px] p-5 relative overflow-hidden shadow-lg shadow-indigo-600/20 group">
-            <div className="relative z-10">
-              <p className="text-white/80 text-[10px] font-bold uppercase tracking-widest">Smart Loyalty</p>
-              <h3 className="text-white font-bold text-lg leading-tight mt-1 uppercase italic tracking-tighter">Gold Tier Access</h3>
-              <p className="text-white/60 text-[10px] mt-1">Earn 5 points per kWh charged</p>
-            </div>
-            <Star className="absolute right-[-10px] bottom-[-10px] w-24 h-24 text-white/10 group-hover:rotate-12 transition-transform" />
-          </div>
-        </aside>
-      </div>
+</aside>
+</div>
 
       {/* Auth Modal */}
       <AnimatePresence>
@@ -1409,7 +1422,18 @@ export default function App() {
   {showFeedback && (
     <FeedbackModal user={user} onClose={() => setShowFeedback(false)} />
   )}
-</AnimatePresence>      
+</AnimatePresence>   
+
+{/* Gold Tier Games Modal */}
+<AnimatePresence>
+  {showGoldTier && (
+    <GoldTierModal
+      user={user}
+      onClose={() => setShowGoldTier(false)}
+      onPointsEarned={(pts) => setUserPoints(p => p + pts)}
+    />
+  )}
+</AnimatePresence>  
 
       {/* Booking Success Modal */}
       <AnimatePresence>
